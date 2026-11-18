@@ -1,4 +1,6 @@
+import os
 import re
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -18,9 +20,13 @@ class Payload(BaseModel):
     acao: str
 
 def baixar_estoque_local(usuario: str = "540956", senha: str = "Batatinha123"):
+    # Localiza automaticamente a pasta Downloads do usuário no Windows
+    pasta_downloads = Path.home() / "Downloads"
+    caminho_arquivo = pasta_downloads / "estoque_local_lote.csv"
+
     with sync_playwright() as p:
-        # headless=True é obrigatório no Render (servidor Linux sem tela)
-        browser = p.chromium.launch(headless=True)
+        # headless=False abre o navegador visível na tela do computador
+        browser = p.chromium.launch(headless=False)
         context = browser.new_context(viewport={"width": 1366, "height": 650})
         page = context.new_page()
 
@@ -60,7 +66,7 @@ def baixar_estoque_local(usuario: str = "540956", senha: str = "Batatinha123"):
         expect(page.get_by_role("gridcell", name="1063817")).to_be_visible(timeout=20000)
         page.get_by_role("link").dblclick()
 
-        # 8. Exporta em .csv
+        # 8. Exporta em .csv e salva direto na pasta Downloads
         expect(page.get_by_role("button", name="Filtrando Depositante: TEX")).to_be_visible(timeout=15000)
         page.locator("#ExportGridPlugin_exportButton").click()
         expect(page.get_by_role("link", name="Excel (.xlsx)")).to_be_visible(timeout=10000)
@@ -68,14 +74,14 @@ def baixar_estoque_local(usuario: str = "540956", senha: str = "Batatinha123"):
         with page.expect_download() as download1_info:
             page.get_by_role("link", name="Separado por Vírgulas (\",\") .").click()
         download1 = download1_info.value
-        download1.save_as("estoque_local_lote.csv")
+        download1.save_as(str(caminho_arquivo))
 
         context.close()
         browser.close()
 
 @app.get("/")
 def home():
-    return {"status": "online", "mensagem": "API Senior WMS rodando no Render!"}
+    return {"status": "online", "mensagem": "Robô local Senior WMS ativo!"}
 
 @app.post("/executar")
 def executar(dados: Payload):
@@ -83,8 +89,8 @@ def executar(dados: Payload):
     if dados.acao == "senior":
         try:
             baixar_estoque_local()
-            print("✅ [AUTOMAÇÃO] Extração do CSV concluída no servidor!")
-            return {"status": "ok", "mensagem": "Download concluído com sucesso!"}
+            print("✅ [AUTOMAÇÃO] Arquivo salvo na pasta Downloads!")
+            return {"status": "ok", "mensagem": "Download concluído na pasta Downloads!"}
         except Exception as e:
             print(f"❌ [ERRO] Falha no Playwright: {str(e)}")
             return {"status": "erro", "mensagem": str(e)}
