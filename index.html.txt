@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente Virtual - Robô Interativo</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --primary-blue: #2563eb;
+            --accent-blue: #3b82f6;
+            --text-light: #f8fafc;
+            --text-muted: #94a3b8;
+            --chat-bg: #0b1329;
+            --msg-robot: #334155;
+            --msg-user: #2563eb;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-light);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Robô no Canto Inferior Direito */
+        .robot-wrapper {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            z-index: 1000;
+        }
+
+        .robot-wrapper:hover {
+            transform: scale(1.05);
+        }
+
+        #robot-svg {
+            width: 110px;
+            height: 95px;
+            animation: flutuar 3s ease-in-out infinite;
+        }
+
+        @keyframes flutuar {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .palpebra {
+            transform-origin: center;
+            transform: scaleY(0);
+        }
+
+        .piscando {
+            animation: piscarNatural 0.18s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes piscarNatural {
+            0% { transform: scaleY(0); }
+            40% { transform: scaleY(1); }
+            60% { transform: scaleY(1); }
+            100% { transform: scaleY(0); }
+        }
+
+        .boca-element {
+            transition: transform 0.1s ease-in-out, fill 0.2s ease;
+            transform-origin: center;
+        }
+
+        .antena-luz {
+            animation: pulsarLuz 1.5s infinite alternate;
+        }
+
+        @keyframes pulsarLuz {
+            0% { opacity: 0.4; filter: drop-shadow(0 0 2px #dc2626); }
+            100% { opacity: 1; filter: drop-shadow(0 0 8px #dc2626); }
+        }
+
+        /* Janela de Chat com expansão a partir do robô */
+        .chat-container {
+            position: fixed;
+            bottom: 125px;
+            right: 20px;
+            width: 360px;
+            height: auto;
+            max-height: 440px;
+            background: var(--chat-bg);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transform: translateY(20px) scale(0.1);
+            transform-origin: bottom right;
+            pointer-events: none;
+            transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 1001;
+        }
+
+        .chat-container.ativo {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+        }
+
+        /* Cabeçalho do Chat */
+        .chat-header {
+            background: rgba(30, 41, 59, 0.9);
+            padding: 12px 16px;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .chat-header-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chat-avatar-robot {
+            width: 30px;
+            height: 30px;
+            background: #2563eb;
+            border-radius: 50%;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        .chat-avatar-robot img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .chat-title-wrapper h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-light);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Bolinha de Online */
+        .online-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #10b981;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 6px #10b981;
+            animation: pulsarDot 2s infinite;
+        }
+
+        @keyframes pulsarDot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.9); }
+        }
+
+        .chat-title-wrapper span {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        .chat-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 16px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .chat-close:hover {
+            color: var(--text-light);
+        }
+
+        /* Corpo de Mensagens com Scrollbar Bonita */
+        .chat-messages {
+            max-height: 250px;
+            padding: 12px 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            scroll-behavior: smooth;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.2);
+            border-radius: 10px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.4);
+            border-radius: 10px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: rgba(59, 130, 246, 0.7);
+        }
+
+        .chat-date-separator {
+            text-align: center;
+            font-size: 10px;
+            color: var(--text-muted);
+            margin: 6px auto;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 3px 10px;
+            border-radius: 10px;
+            width: fit-content;
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 85%;
+            animation: fadeIn 0.3s ease;
+            position: relative;
+        }
+
+        .message.robot {
+            align-self: flex-start;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            align-items: flex-end;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .msg-content-wrapper {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .message.user .msg-content-wrapper {
+            flex-direction: row-reverse;
+        }
+
+        .msg-avatar {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+        }
+
+        .msg-avatar.robot-av {
+            background: #2563eb;
+            overflow: hidden;
+        }
+
+        .msg-avatar.robot-av img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .msg-avatar.user-av {
+            background: #cbd5e1;
+            color: #64748b;
+        }
+
+        .msg-bubble {
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            line-height: 1.4;
+            word-break: break-word;
+            white-space: pre-line;
+        }
+
+        .message.robot .msg-bubble {
+            background: var(--msg-robot);
+            color: var(--text-light);
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.user .msg-bubble {
+            background: var(--msg-user);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        /* Horário abaixo da mensagem */
+        .msg-timestamp {
+            font-size: 9px;
+            color: var(--text-muted);
+            margin-top: 3px;
+            padding: 0 4px;
+        }
+
+        .message.user .msg-timestamp {
+            text-align: right;
+        }
+
+        /* Botões de Escolha Interativa (Inline no Chat) */
+        .inline-options {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+            flex-wrap: wrap;
+        }
+
+        .inline-btn {
+            background: rgba(37, 99, 235, 0.3);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            color: var(--text-light);
+            padding: 5px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .inline-btn:hover {
+            background: rgba(37, 99, 235, 0.7);
+            border-color: var(--accent-blue);
+        }
+
+        /* Sugestões de Acesso */
+        .suggestions-container {
+            padding: 6px 12px;
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            background: rgba(15, 23, 42, 0.4);
+            white-space: nowrap;
+        }
+
+        .suggestions-container::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .suggestions-container::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.3);
+            border-radius: 10px;
+        }
+
+        .suggestion-chip {
+            background: rgba(37, 99, 235, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            color: var(--text-light);
+            padding: 5px 10px;
+            border-radius: 14px;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .suggestion-chip:hover {
+            background: rgba(37, 99, 235, 0.6);
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+        }
+
+        /* Rodapé de Envio */
+        .chat-footer {
+            padding: 10px 12px;
+            background: rgba(30, 41, 59, 0.6);
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 8px 12px;
+            border-radius: 18px;
+            color: var(--text-light);
+            font-size: 12px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .chat-input:focus {
+            border-color: var(--accent-blue);
+        }
+
+        .chat-send-btn {
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .chat-send-btn:hover {
+            background: #1d4ed8;
+            transform: scale(1.05);
+        }
+
+        .hint-click {
+            position: fixed;
+            bottom: 115px;
+            right: 20px;
+            background: rgba(30, 41, 59, 0.9);
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            color: var(--text-muted);
+            pointer-events: none;
+            animation: pulseHint 2s infinite;
+            z-index: 999;
+        }
+
+        @keyframes pulseHint {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="hintClick" class="hint-click">Precisa de ajuda? Fale comigo! 👇</div>
+
+    <!-- Janela de Chat -->
+    <div id="chatContainer" class="chat-container">
+        <div class="chat-header">
+            <div class="chat-header-info">
+                <div class="chat-avatar-robot">
+                    <img src="https://i.ibb.co/1WhGX5D/foto-robo.png" alt="Assistente Robô">
+                </div>
+                <div class="chat-title-wrapper">
+                    <h3>Assistente de devolução <span class="online-dot"></span></h3>
+                    <span>Online agora</span>
+                </div>
+            </div>
+            <button class="chat-close" onclick="alternarChat()">✕</button>
+        </div>
+        
+        <div id="chatMessages" class="chat-messages"></div>
+
+        <!-- Sugestões de Acesso (Senior WMS, ICS Integrated, Contato) -->
+        <div class="suggestions-container" id="suggestionsContainer">
+            <button class="suggestion-chip" onclick="clicarSeniorWMS()">Senior WMS</button>
+            <button class="suggestion-chip" onclick="clicarICS()">ICS Integrated</button>
+            <button class="suggestion-chip" onclick="clicarContato()">Contato</button>
+        </div>
+
+        <div class="chat-footer">
+            <input type="text" id="chatInput" class="chat-input" placeholder="Escreve a tua mensagem..." onkeypress="verificarEnter(event)" oninput="resetInatividade()">
+            <button class="chat-send-btn" onclick="enviarMensagem()">➤</button>
+        </div>
+    </div>
+
+    <!-- Robô (Canto Inferior Direito) -->
+    <div class="robot-wrapper" onclick="alternarChat()" title="Abrir Chat">
+        <svg id="robot-svg" viewBox="0 0 200 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="100" y1="50" x2="100" y2="25" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+            <circle id="antennaLight" class="antena-luz" cx="100" cy="20" r="8" fill="#dc2626"/>
+            <rect x="50" y="50" width="100" height="85" rx="18" fill="#1e293b" stroke="#3b82f6" stroke-width="3"/>
+            <rect x="62" y="62" width="76" height="60" rx="10" fill="#0f172a"/>
+            <rect x="42" y="80" width="8" height="25" rx="4" fill="#dc2626"/>
+            <rect x="150" y="80" width="8" height="25" rx="4" fill="#dc2626"/>
+            <g id="eyes">
+                <circle cx="80" cy="88" r="10" fill="#3b82f6"/>
+                <circle cx="77" cy="85" r="3" fill="#ffffff"/>
+                <rect id="palpebraEsq" class="palpebra" x="70" y="78" width="20" height="20" rx="10" fill="#1e293b"/>
+                <circle cx="120" cy="88" r="10" fill="#3b82f6"/>
+                <circle cx="117" cy="85" r="3" fill="#ffffff"/>
+                <rect id="palpebraDir" class="palpebra" x="110" y="78" width="20" height="20" rx="10" fill="#1e293b"/>
+            </g>
+            <ellipse id="robotMouth" class="boca-element" cx="100" cy="112" rx="14" ry="4" fill="#3b82f6"/>
+        </svg>
+    </div>
+
+    <script>
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playBeep(freq = 440, duration = 0.08, type = 'sine') {
+            try {
+                initAudio();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {}
+        }
+
+        const palpebraEsq = document.getElementById('palpebraEsq');
+        const palpebraDir = document.getElementById('palpebraDir');
+        const mouth = document.getElementById('robotMouth');
+        const chatContainer = document.getElementById('chatContainer');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const hintClick = document.getElementById('hintClick');
+
+        let chatAberto = false;
+        let isTalking = false;
+        let primeiraAbertura = true;
+        let primeiraMensagemEnviada = false;
+        
+        let timerInatividade3Min = null;
+        let timerInatividade5Min = null;
+        let timerInatividade7Min = null;
+        let chatEncerrado = false;
+
+        let armazemMostrado = false;
+        let estoqueMostrado = false;
+
+        function obterSaudacao() {
+            const hora = new Date().getHours();
+            if (hora >= 5 && hora < 12) {
+                return "Bom dia";
+            } else if (hora >= 12 && hora < 18) {
+                return "Boa tarde";
+            } else {
+                return "Boa noite";
+            }
+        }
+
+        function obterHoraFormatada() {
+            const agora = new Date();
+            const horas = String(agora.getHours()).padStart(2, '0');
+            const minutos = String(agora.getMinutes()).padStart(2, '0');
+            return `${horas}:${minutos}`;
+        }
+
+        // Sistema de inatividade refinado (3 min POP, 5 min checagem, 7 min fechar)
+        function iniciarInatividade() {
+            if (!chatAberto || chatEncerrado) return;
+            clearTimeout(timerInatividade3Min);
+            clearTimeout(timerInatividade5Min);
+            clearTimeout(timerInatividade7Min);
+
+            // 3 minutos: POP de devolução
+            timerInatividade3Min = setTimeout(() => {
+                if (chatAberto && !chatEncerrado) {
+                    escreverMensagemComDigitacao("Dúvidas ? acesse o POP de devolução.");
+                }
+            }, 3 * 60 * 1000);
+
+            // 5 minutos: Pergunta se tem alguém lá
+            timerInatividade5Min = setTimeout(() => {
+                if (chatAberto && !chatEncerrado) {
+                    escreverMensagemComDigitacao("Tem alguém aí?");
+                }
+            }, 5 * 60 * 1000);
+
+            // 7 minutos: Fecha janela e reseta conversa
+            timerInatividade7Min = setTimeout(() => {
+                if (chatAberto && !chatEncerrado) {
+                    chatEncerrado = true;
+                    chatInput.disabled = true;
+                    escreverMensagemComDigitacao("⚠️ Conversa encerrada por inatividade (7 minutos). Fechando a janela.");
+                    setTimeout(() => {
+                        alternarChat();
+                    }, 2500);
+                }
+            }, 7 * 60 * 1000);
+        }
+
+        function resetInatividade() {
+            if (!chatAberto || chatEncerrado) return;
+            iniciarInatividade();
+        }
+
+        function resetarConversa() {
+            clearTimeout(timerInatividade3Min);
+            clearTimeout(timerInatividade5Min);
+            clearTimeout(timerInatividade7Min);
+            chatMessages.innerHTML = '';
+            primeiraAbertura = true;
+            primeiraMensagemEnviada = false;
+            chatEncerrado = false;
+            chatInput.disabled = false;
+            armazemMostrado = false;
+            estoqueMostrado = false;
+        }
+
+        function alternarChat() {
+            chatAberto = !chatAberto;
+            if (chatAberto) {
+                chatContainer.classList.add('ativo');
+                hintClick.style.display = 'none';
+                piscarOlhos();
+                iniciarInatividade();
+                
+                if (primeiraAbertura) {
+                    primeiraAbertura = false;
+                    setTimeout(() => {
+                        const saudacao = obterSaudacao();
+                        const mensagemInicial = `${saudacao}! Sou o seu Assistente de devolução.\n\nEstou aqui para acompanhar os uploads, validar inconsistências e orientar cada etapa da sua devolução.`;
+                        escreverMensagemComDigitacao(mensagemInicial);
+                    }, 400);
+                }
+            } else {
+                chatContainer.classList.remove('ativo');
+                resetarConversa();
+            }
+        }
+
+        function piscarOlhos() {
+            palpebraEsq.classList.remove('piscando');
+            palpebraDir.classList.remove('piscando');
+            void palpebraEsq.offsetWidth;
+            void palpebraDir.offsetWidth;
+            palpebraEsq.classList.add('piscando');
+            palpebraDir.classList.add('piscando');
+            setTimeout(() => {
+                palpebraEsq.classList.remove('piscando');
+                palpebraDir.classList.remove('piscando');
+            }, 200);
+        }
+
+        function ativarFalaRobot(ativo) {
+            isTalking = ativo;
+            if (!ativo) {
+                mouth.style.transform = "scale(1, 1)";
+            }
+        }
+
+        function loopFala() {
+            if (!isTalking) return;
+            const scaleY = Math.random() > 0.5 ? 1.3 : 0.8;
+            mouth.style.transform = `scale(1, ${scaleY})`;
+            playBeep(500 + Math.random() * 250, 0.05, 'sine');
+            setTimeout(loopFala, 110);
+        }
+
+        function escreverMensagemComDigitacao(htmlTexto, botoesOpcoes = null, callback) {
+            const bubbleId = 'msg-' + Date.now();
+            const horaEnvio = obterHoraFormatada();
+            
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message robot';
+            msgDiv.innerHTML = `
+                <div class="msg-content-wrapper">
+                    <div class="msg-avatar robot-av"><img src="https://i.ibb.co/1WhGX5D/foto-robo.png" alt="Robô"></div>
+                    <div class="msg-bubble-wrapper" style="max-width: 100%;">
+                        <div class="msg-bubble" id="${bubbleId}"></div>
+                        <div id="options-${bubbleId}" class="inline-options"></div>
+                    </div>
+                </div>
+                <div class="msg-timestamp">${horaEnvio}</div>
+            `;
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            const bubbleElement = document.getElementById(bubbleId);
+            const optionsContainer = document.getElementById(`options-${bubbleId}`);
+            
+            const tokens = [];
+            let inTag = false;
+            let currentTag = "";
+            let textBuffer = "";
+            
+            for (let c = 0; c < htmlTexto.length; c++) {
+                let char = htmlTexto[c];
+                if (char === '<') {
+                    if (textBuffer.length > 0) {
+                        for (let t of textBuffer) tokens.push(t);
+                        textBuffer = "";
+                    }
+                    inTag = true;
+                    currentTag = '<';
+                } else if (char === '>' && inTag) {
+                    currentTag += '>';
+                    tokens.push(currentTag);
+                    currentTag = '';
+                    inTag = false;
+                } else if (inTag) {
+                    currentTag += char;
+                } else {
+                    textBuffer += char;
+                }
+            }
+            if (textBuffer.length > 0) {
+                for (let t of textBuffer) tokens.push(t);
+            }
+
+            let currentHTML = "";
+            let tokenIndex = 0;
+            
+            ativarFalaRobot(true);
+            loopFala();
+
+            function digitar() {
+                if (tokenIndex < tokens.length) {
+                    currentHTML += tokens[tokenIndex];
+                    bubbleElement.innerHTML = currentHTML;
+                    tokenIndex++;
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    
+                    const isTag = tokens[tokenIndex - 1].startsWith('<');
+                    const delay = isTag ? 0 : (20 + Math.random() * 20);
+                    setTimeout(digitar, delay);
+                } else {
+                    ativarFalaRobot(false);
+                    if (botoesOpcoes && botoesOpcoes.length > 0) {
+                        botoesOpcoes.forEach(opt => {
+                            const btn = document.createElement('button');
+                            btn.className = 'inline-btn';
+                            btn.textContent = opt.texto;
+                            btn.onclick = opt.acao;
+                            optionsContainer.appendChild(btn);
+                        });
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
+                    if (callback) callback();
+                }
+            }
+
+            digitar();
+        }
+
+        // Fluxo Senior WMS
+        function clicarSeniorWMS() {
+            if (chatEncerrado) return;
+            resetInatividade();
+            adicionarMensagemUser("Senior WMS");
+
+            setTimeout(() => {
+                escreverMensagemComDigitacao("Gostaria de abrir o senior ?", [
+                    { texto: "Sim", acao: () => responderSeniorSim() },
+                    { texto: "Não", acao: () => responderSeniorNao() }
+                ]);
+            }, 600);
+        }
+
+        function responderSeniorSim() {
+            if (chatEncerrado) return;
+            resetInatividade();
+            adicionarMensagemUser("Sim");
+
+            window.open("https://texcoprd.seniorcloud.com.br/siltwms", "_blank");
+
+            setTimeout(() => {
+                escreverMensagemComDigitacao("Site do sênior está aberto caso queira alguma ajuda a mais utilize os botões de sugestão");
+            }, 600);
+        }
+
+        function responderSeniorNao() {
+            if (chatEncerrado) return;
+            resetInatividade();
+            adicionarMensagemUser("Não");
+
+            setTimeout(() => {
+                const opcoesCSV = [];
+                if (!armazemMostrado) opcoesCSV.push({ texto: "Armazém", acao: () => escolherCSV('armazem') });
+                if (!estoqueMostrado) opcoesCSV.push({ texto: "Estoque local", acao: () => escolherCSV('estoque') });
+
+                if (opcoesCSV.length > 0) {
+                    escreverMensagemComDigitacao("Sem problemas! Se preferir não abrir o sistema agora, passo a passo para baixar o .csv:", opcoesCSV);
+                } else {
+                    escreverMensagemComDigitacao("Ok! Quando precisar de mim estarei aqui.\n\nPrecisar de mais alguma coisa utilize as sugestões de botão.");
+                }
+            }, 600);
+        }
+
+        function escolherCSV(tipo) {
+            if (chatEncerrado) return;
+            resetInatividade();
+
+            if (tipo === 'armazem') {
+                armazemMostrado = true;
+                adicionarMensagemUser("Armazém");
+                setTimeout(() => {
+                    const respostaArmazem = "🏭 Como baixar o <b>Armazém</b>:\n\n1. Acesse o Senior WMS e faça login.\n2. Pesquise por <b>Armazém</b> na barra de navegação.\n3. Procure por <b>TOTAL EXPRESS - JUNDIAI</b>.\n4. Selecione e localize <b>Locais de armazenagem</b>.\n5. Filtre por: Estoque: Não e Ativos: Sim, baixe o relatório e importe no botão 📥.";
+                    
+                    escreverMensagemComDigitacao(respostaArmazem, null, () => {
+                        setTimeout(() => {
+                            if (!estoqueMostrado) {
+                                escreverMensagemComDigitacao("Gostaria de aprender o passo a passo do estoque local?", [
+                                    { texto: "Estoque local", acao: () => escolherCSV('estoque') },
+                                    { texto: "Não", acao: () => responderNaoEstoque() }
+                                ]);
+                            } else {
+                                escreverMensagemComDigitacao("Ok! Quando precisar de mim estarei aqui.\n\nPrecisar de mais alguma coisa utilize as sugestões de botão.");
+                            }
+                        }, 800);
+                    });
+                }, 600);
+            } else if (tipo === 'estoque') {
+                estoqueMostrado = true;
+                adicionarMensagemUser("Estoque local");
+                setTimeout(() => {
+                    const respostaEstoque = "📦 Onde baixar Estoque Local:\n\n1. Acesse o Senior WMS e faça o login inicial.\n2. Na barra de navegação, pesquise por <b>Estoque local por lote</b>.\n3. Selecione o depositante: <b>TEX COURIER S.A | DEVOLUÇÃO JDU</b> e clique em selecionar.\n4. Exporte o arquivo e importe no botão 📥 do cabeçalho.";
+                    
+                    escreverMensagemComDigitacao(respostaEstoque, null, () => {
+                        setTimeout(() => {
+                            if (!armazemMostrado) {
+                                escreverMensagemComDigitacao("Gostaria de aprender o passo a passo do armazém?", [
+                                    { texto: "Armazém", acao: () => escolherCSV('armazem') },
+                                    { texto: "Não", acao: () => responderNaoEstoque() }
+                                ]);
+                            } else {
+                                escreverMensagemComDigitacao("Ok! Quando precisar de mim estarei aqui.\n\nPrecisar de mais alguma coisa utilize as sugestões de botão.");
+                            }
+                        }, 800);
+                    });
+                }, 600);
+            }
+        }
+
+        function responderNaoEstoque() {
+            if (chatEncerrado) return;
+            resetInatividade();
+            adicionarMensagemUser("Não");
+
+            setTimeout(() => {
+                escreverMensagemComDigitacao("Ok! Quando precisar de mim estarei aqui.\n\nPrecisar de mais alguma coisa utilize as sugestões de botão.");
+            }, 600);
+        }
+
+        // Fluxo ICS Integrated
+        function clicarICS() {
+            if (chatEncerrado) return;
+            resetInatividade();
+            adicionarMensagemUser("ICS Integrated");
+
+            setTimeout(() => {
+                escreverMensagemComDigitacao("Deseja abrir o site do ICS ?", [
+                    { texto: "Sim", acao: () => responderICSSim() },
+                    { texto: "Não", acao: () => responderICSNao() }
+                ]);
+            }, 600);
+        }
+
+        function responderICSSim() {
+            if (chatEncerrado) return;
+            resetInatividade();
+            adicionarMensagemUser("Sim");
+
+            window.open("https://ics.totalexpress.com.br/index.php", "_blank");
+
+            setTimeout(() => {
+                escreverMensagemComDigitacao("Site aberto caso precisar de mais orientações use os botões de sugestão");
+            }, 600);
+        }
+
+        function responderICSNao() {
+            if (chatEncerrado) return;
+            resetInatividade();
+            adicionarMensagemUser("Não");
+
+            setTimeout(() => {
+                const passoAPassoICS = "📋 <b>Passo a passo para baixar arquivo no ICS Integrated:</b>\n\n1 - Logar no ICS Integrated\n2 - Procurar aba Relatórios\n3 - Ir na opção Busca por lote\n4 - Selecionar a coluna correspondente seja lote master / lacre.\n5 - Selecionar os check-box\n6 - Ir ao final da página clicar em \"Prosseguir\"\n7 - Baixar arquivo.";
+                escreverMensagemComDigitacao(passoAPassoICS);
+            }, 600);
+        }
+
+        // Fluxo Contato
+        function clicarContato() {
+            if (chatEncerrado) return;
+            resetInatividade();
+            adicionarMensagemUser("Contato");
+
+            setTimeout(() => {
+                const dadosContato = "👤 <b>Analista de Processos:</b>\n\n• Teams: Jhonatan caetano da silva\n• E-mail: Jhonatancaetano@totalexpress.com.br";
+                escreverMensagemComDigitacao(dadosContato);
+            }, 600);
+        }
+
+        function usarSugestao(texto) {
+            if (chatEncerrado) return;
+            chatInput.value = texto;
+            enviarMensagem();
+        }
+
+        function verificarEnter(event) {
+            if (event.key === 'Enter') {
+                enviarMensagem();
+            }
+        }
+
+        function adicionarMensagemUser(texto) {
+            if (chatEncerrado) return;
+            resetInatividade();
+
+            if (!primeiraMensagemEnviada) {
+                primeiraMensagemEnviada = true;
+                const dateDiv = document.createElement('div');
+                dateDiv.className = 'chat-date-separator';
+                dateDiv.textContent = "06 terça-feira 2026";
+                chatMessages.appendChild(dateDiv);
+            }
+
+            const horaEnvio = obterHoraFormatada();
+            const bubbleId = 'user-msg-' + Date.now();
+
+            const userDiv = document.createElement('div');
+            userDiv.className = 'message user';
+            userDiv.innerHTML = `
+                <div class="msg-content-wrapper">
+                    <div class="msg-avatar user-av">👤</div>
+                    <div class="msg-bubble" id="${bubbleId}">${escaparHTML(texto)}</div>
+                </div>
+                <div class="msg-timestamp">${horaEnvio}</div>
+            `;
+            chatMessages.appendChild(userDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function enviarMensagem() {
+            if (chatEncerrado) return;
+            const texto = chatInput.value.trim();
+            if (!texto) return;
+
+            adicionarMensagemUser(texto);
+            chatInput.value = '';
+
+            setTimeout(() => {
+                let resposta = "Entendido. Utilize os botões de sugestão caso precise de mais orientações!";
+                escreverMensagemComDigitacao(resposta);
+            }, 900);
+        }
+
+        function escaparHTML(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+    </script>
+</body>
+</html>
