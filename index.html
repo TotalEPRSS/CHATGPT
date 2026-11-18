@@ -514,6 +514,9 @@
     </div>
 
     <script>
+        // URL DA SUA API NO RENDER ATUALIZADA
+        const URL_API_PYTHON = 'https://chatgpt-c1n7.onrender.com/executar';
+
         let audioCtx = null;
         function initAudio() {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -575,28 +578,24 @@
             return `${horas}:${minutos}`;
         }
 
-        // Sistema de inatividade refinado (3 min POP, 5 min checagem, 7 min fechar)
         function iniciarInatividade() {
             if (!chatAberto || chatEncerrado) return;
             clearTimeout(timerInatividade3Min);
             clearTimeout(timerInatividade5Min);
             clearTimeout(timerInatividade7Min);
 
-            // 3 minutos: POP de devolução
             timerInatividade3Min = setTimeout(() => {
                 if (chatAberto && !chatEncerrado) {
                     escreverMensagemComDigitacao("Dúvidas ? acesse o POP de devolução.");
                 }
             }, 3 * 60 * 1000);
 
-            // 5 minutos: Pergunta se tem alguém lá
             timerInatividade5Min = setTimeout(() => {
                 if (chatAberto && !chatEncerrado) {
                     escreverMensagemComDigitacao("Tem alguém aí?");
                 }
             }, 5 * 60 * 1000);
 
-            // 7 minutos: Fecha janela e reseta conversa
             timerInatividade7Min = setTimeout(() => {
                 if (chatAberto && !chatEncerrado) {
                     chatEncerrado = true;
@@ -763,6 +762,35 @@
             digitar();
         }
 
+        // ==========================================
+        // INTEGRAÇÃO COM BACKEND PYTHON NO RENDER
+        // ==========================================
+        function chamarBackendPython(tipoAcao) {
+            if (chatEncerrado) return;
+            resetInatividade();
+
+            escreverMensagemComDigitacao("🤖 Acionando o robô em Python para processar nos bastidores...");
+
+            fetch(URL_API_PYTHON, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ acao: tipoAcao })
+            })
+            .then(response => response.json())
+            .then(data => {
+                setTimeout(() => {
+                    escreverMensagemComDigitacao(`✅ ${data.mensagem}`);
+                }, 800);
+            })
+            .catch(error => {
+                setTimeout(() => {
+                    escreverMensagemComDigitacao("⚠️ Erro de conexão com o servidor Python no Render. Verifique se a API está ativa.");
+                }, 800);
+            });
+        }
+
         // Fluxo Senior WMS
         function clicarSeniorWMS() {
             if (chatEncerrado) return;
@@ -770,22 +798,10 @@
             adicionarMensagemUser("Senior WMS");
 
             setTimeout(() => {
-                escreverMensagemComDigitacao("Gostaria de abrir o senior ?", [
-                    { texto: "Sim", acao: () => responderSeniorSim() },
-                    { texto: "Não", acao: () => responderSeniorNao() }
+                escreverMensagemComDigitacao("Deseja executar a automação do Senior WMS via Python?", [
+                    { texto: "Sim (Rodar Robô)", acao: () => { adicionarMensagemUser("Sim"); chamarBackendPython('senior'); } },
+                    { texto: "Não (Ver passo a passo)", acao: () => responderSeniorNao() }
                 ]);
-            }, 600);
-        }
-
-        function responderSeniorSim() {
-            if (chatEncerrado) return;
-            resetInatividade();
-            adicionarMensagemUser("Sim");
-
-            window.open("https://texcoprd.seniorcloud.com.br/siltwms", "_blank");
-
-            setTimeout(() => {
-                escreverMensagemComDigitacao("Site do sênior está aberto caso queira alguma ajuda a mais utilize os botões de sugestão");
             }, 600);
         }
 
@@ -800,9 +816,9 @@
                 if (!estoqueMostrado) opcoesCSV.push({ texto: "Estoque local", acao: () => escolherCSV('estoque') });
 
                 if (opcoesCSV.length > 0) {
-                    escreverMensagemComDigitacao("Sem problemas! Se preferir não abrir o sistema agora, passo a passo para baixar o .csv:", opcoesCSV);
+                    escreverMensagemComDigitacao("Sem problemas! Segue o passo a passo para baixar o .csv manualmente:", opcoesCSV);
                 } else {
-                    escreverMensagemComDigitacao("Ok! Quando precisar de mim estarei aqui.\n\nPrecisar de mais alguma coisa utilize as sugestões de botão.");
+                    escreverMensagemComDigitacao("Ok! Quando precisar de mim estarei aqui.");
                 }
             }, 600);
         }
@@ -816,50 +832,16 @@
                 adicionarMensagemUser("Armazém");
                 setTimeout(() => {
                     const respostaArmazem = "🏭 Como baixar o <b>Armazém</b>:\n\n1. Acesse o Senior WMS e faça login.\n2. Pesquise por <b>Armazém</b> na barra de navegação.\n3. Procure por <b>TOTAL EXPRESS - JUNDIAI</b>.\n4. Selecione e localize <b>Locais de armazenagem</b>.\n5. Filtre por: Estoque: Não e Ativos: Sim, baixe o relatório e importe no botão 📥.";
-                    
-                    escreverMensagemComDigitacao(respostaArmazem, null, () => {
-                        setTimeout(() => {
-                            if (!estoqueMostrado) {
-                                escreverMensagemComDigitacao("Gostaria de aprender o passo a passo do estoque local?", [
-                                    { texto: "Estoque local", acao: () => escolherCSV('estoque') },
-                                    { texto: "Não", acao: () => responderNaoEstoque() }
-                                ]);
-                            } else {
-                                escreverMensagemComDigitacao("Ok! Quando precisar de mim estarei aqui.\n\nPrecisar de mais alguma coisa utilize as sugestões de botão.");
-                            }
-                        }, 800);
-                    });
+                    escreverMensagemComDigitacao(respostaArmazem);
                 }, 600);
             } else if (tipo === 'estoque') {
                 estoqueMostrado = true;
                 adicionarMensagemUser("Estoque local");
                 setTimeout(() => {
                     const respostaEstoque = "📦 Onde baixar Estoque Local:\n\n1. Acesse o Senior WMS e faça o login inicial.\n2. Na barra de navegação, pesquise por <b>Estoque local por lote</b>.\n3. Selecione o depositante: <b>TEX COURIER S.A | DEVOLUÇÃO JDU</b> e clique em selecionar.\n4. Exporte o arquivo e importe no botão 📥 do cabeçalho.";
-                    
-                    escreverMensagemComDigitacao(respostaEstoque, null, () => {
-                        setTimeout(() => {
-                            if (!armazemMostrado) {
-                                escreverMensagemComDigitacao("Gostaria de aprender o passo a passo do armazém?", [
-                                    { texto: "Armazém", acao: () => escolherCSV('armazem') },
-                                    { texto: "Não", acao: () => responderNaoEstoque() }
-                                ]);
-                            } else {
-                                escreverMensagemComDigitacao("Ok! Quando precisar de mim estarei aqui.\n\nPrecisar de mais alguma coisa utilize as sugestões de botão.");
-                            }
-                        }, 800);
-                    });
+                    escreverMensagemComDigitacao(respostaEstoque);
                 }, 600);
             }
-        }
-
-        function responderNaoEstoque() {
-            if (chatEncerrado) return;
-            resetInatividade();
-            adicionarMensagemUser("Não");
-
-            setTimeout(() => {
-                escreverMensagemComDigitacao("Ok! Quando precisar de mim estarei aqui.\n\nPrecisar de mais alguma coisa utilize as sugestões de botão.");
-            }, 600);
         }
 
         // Fluxo ICS Integrated
@@ -869,22 +851,10 @@
             adicionarMensagemUser("ICS Integrated");
 
             setTimeout(() => {
-                escreverMensagemComDigitacao("Deseja abrir o site do ICS ?", [
-                    { texto: "Sim", acao: () => responderICSSim() },
-                    { texto: "Não", acao: () => responderICSNao() }
+                escreverMensagemComDigitacao("Deseja disparar a automação do ICS pelo Python?", [
+                    { texto: "Sim (Rodar Robô)", acao: () => { adicionarMensagemUser("Sim"); chamarBackendPython('ics'); } },
+                    { texto: "Não (Ver passo a passo)", acao: () => responderICSNao() }
                 ]);
-            }, 600);
-        }
-
-        function responderICSSim() {
-            if (chatEncerrado) return;
-            resetInatividade();
-            adicionarMensagemUser("Sim");
-
-            window.open("https://ics.totalexpress.com.br/index.php", "_blank");
-
-            setTimeout(() => {
-                escreverMensagemComDigitacao("Site aberto caso precisar de mais orientações use os botões de sugestão");
             }, 600);
         }
 
@@ -909,12 +879,6 @@
                 const dadosContato = "👤 <b>Analista de Processos:</b>\n\n• Teams: Jhonatan caetano da silva\n• E-mail: Jhonatancaetano@totalexpress.com.br";
                 escreverMensagemComDigitacao(dadosContato);
             }, 600);
-        }
-
-        function usarSugestao(texto) {
-            if (chatEncerrado) return;
-            chatInput.value = texto;
-            enviarMensagem();
         }
 
         function verificarEnter(event) {
